@@ -1,0 +1,92 @@
+schema_version: 1
+
+context:
+  version: "0.5.0"
+
+package:
+  name: cosmolkit
+  version: ${{ version }}
+
+source:
+  - url: https://pypi.org/packages/source/c/cosmolkit/cosmolkit-${{ version }}.tar.gz
+    sha256: 5aceb7eda4d725cfb52576357e4c1c03585dde0688bd669bbd290ed1df9363cd
+  # The 0.5.0 sdist omits the root license; retrieve it from the matching tag.
+  - url: https://raw.githubusercontent.com/cosmol-studio/COSMolKit/v${{ version }}/LICENSE
+    sha256: 318ada8a479dc3483285c569ab09a4a7044b7c324dedef241625495ecdb1971e
+
+build:
+  number: 0
+  skip: is_freethreading or (is_abi3 and not is_python_min)
+  python:
+    version_independent: ${{ is_abi3 }}
+  script:
+    - if: unix
+      then: export CARGO_BUILD_JOBS="${CPU_COUNT}"
+      else: set "CARGO_BUILD_JOBS=%CPU_COUNT%"
+    - ${{ PYTHON }} -m pip install . --no-deps --no-build-isolation --config-settings=build-args=--locked -vv
+    - cargo-bundle-licenses --format yaml --output THIRDPARTY.yml
+
+requirements:
+  build:
+    - ${{ compiler('c') }}
+    - ${{ compiler('rust') }}
+    - ${{ stdlib('c') }}
+    - cargo-bundle-licenses
+    - if: build_platform != host_platform
+      then:
+        - python
+        - cross-python_${{ host_platform }}
+        - crossenv
+        - maturin >=1.9.4,<2
+  host:
+    - python
+    - if: is_abi3
+      then: python-abi3
+    - pip
+    - maturin >=1.9.4,<2
+  run:
+    - python
+    - numpy >=1.23
+
+tests:
+  - python:
+      imports:
+        - cosmolkit
+      pip_check: true
+      python_version:
+        - ${{ python_min }}.*
+        - "3.12.*"
+        - "3.13.*"
+        - "3.14.*"
+  - script: python run_test.py
+    files:
+      recipe:
+        - run_test.py
+  - requirements:
+      run:
+        - abi3audit
+    script:
+      - if: unix
+        then: abi3audit "$SP_DIR/cosmolkit/cosmolkit.abi3.so" -s -v --assume-minimum-abi3 3.9
+        else: abi3audit "%SP_DIR%\cosmolkit\cosmolkit.pyd" -s -v --assume-minimum-abi3 3.9
+
+about:
+  homepage: https://tools.cosmol.org/
+  summary: Rust-native cheminformatics and structural biology toolkit
+  description: |
+    COSMolKit provides Python bindings for Rust-native molecular processing,
+    substructure search, fingerprints, descriptors, conformers, force fields,
+    reactions, molecular formats, and structural biology.
+  license: MIT
+  license_file:
+    - LICENSE
+    - THIRDPARTY.yml
+    - crates/cosmolkit-fingerprints/THIRD_PARTY_NOTICES.md
+    - crates/cosmolkit-io/THIRD_PARTY_NOTICES.md
+    - crates/cosmolkit-depict/assets/licenses/NotoSans-OFL-1.1.txt
+  documentation: https://kit.cosmol.org/
+  repository: https://github.com/cosmol-studio/COSMolKit
+
+extra:
+  recipe-maintainers:
+    - "950288"
